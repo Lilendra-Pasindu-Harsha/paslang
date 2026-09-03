@@ -37,6 +37,8 @@ SemanticAnalyzer::SemanticAnalyzer() {
     m_builtins["transpose"] = 1;
     m_builtins["dot"] = 2;
     m_builtins["norm"] = 1;
+    m_builtins["det"] = 1;
+    m_builtins["inv"] = 1;
 
     // Equation Solvers
     m_builtins["solve_quadratic"] = 3;

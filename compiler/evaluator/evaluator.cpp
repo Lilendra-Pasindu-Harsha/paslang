@@ -512,6 +512,31 @@ Value Evaluator::evalCallExpr(const CallExprAST& callExpr) {
             }
             return Value::makeFloat(std::sqrt(sumSq));
         }
+    } else if (fn == "det" && argVals.size() == 1) {
+        if (argVals[0].type == ValueType::Matrix) {
+            const auto& M = *argVals[0].matrixVal;
+            if (M.rows == 2 && M.cols == 2) {
+                double d = M.get(0, 0) * M.get(1, 1) - M.get(0, 1) * M.get(1, 0);
+                return Value::makeFloat(d);
+            } else if (M.rows == 1 && M.cols == 1) {
+                return Value::makeFloat(M.get(0, 0));
+            }
+        }
+    } else if (fn == "inv" && argVals.size() == 1) {
+        if (argVals[0].type == ValueType::Matrix) {
+            const auto& M = *argVals[0].matrixVal;
+            if (M.rows == 2 && M.cols == 2) {
+                double detVal = M.get(0, 0) * M.get(1, 1) - M.get(0, 1) * M.get(1, 0);
+                if (std::abs(detVal) > 1e-12) {
+                    Value Inv = Value::makeMatrix(2, 2, 0.0);
+                    Inv.matrixVal->set(0, 0, M.get(1, 1) / detVal);
+                    Inv.matrixVal->set(0, 1, -M.get(0, 1) / detVal);
+                    Inv.matrixVal->set(1, 0, -M.get(1, 0) / detVal);
+                    Inv.matrixVal->set(1, 1, M.get(0, 0) / detVal);
+                    return Inv;
+                }
+            }
+        }
     }
 
     // --- Equation Solvers ---
