@@ -11,17 +11,21 @@ namespace paslang {
 
 enum class ASTNodeType {
     Program,
+    BlockStmt,
     VarDeclStmt,
     SayStmt,
+    IfStmt,
+    RepeatStmt,
+    WhileStmt,
     ExprStmt,
     NumberExpr,
     StringExpr,
+    BoolExpr,
     VariableExpr,
     BinaryExpr,
+    UnaryExpr,
     CallExpr
 };
-
-class ASTVisitor;
 
 class ASTNode {
 public:
@@ -38,6 +42,20 @@ using ExprASTPtr = std::unique_ptr<ExprAST>;
 
 class StmtAST : public ASTNode {};
 using StmtASTPtr = std::unique_ptr<StmtAST>;
+
+// Block statement (sequence of statements)
+class BlockStmtAST : public StmtAST {
+public:
+    std::vector<StmtASTPtr> statements;
+
+    ASTNodeType getType() const override { return ASTNodeType::BlockStmt; }
+    void dump(int indent = 0) const override {
+        std::cout << std::string(indent, ' ') << "BlockStmt:\n";
+        for (const auto& stmt : statements) {
+            if (stmt) stmt->dump(indent + 2);
+        }
+    }
+};
 
 // Literal number (int or float)
 class NumberExprAST : public ExprAST {
@@ -68,6 +86,20 @@ public:
     }
 };
 
+// Literal boolean
+class BoolExprAST : public ExprAST {
+public:
+    bool value;
+
+    BoolExprAST(bool val, SourceLocation loc)
+        : value(val) { location = loc; }
+
+    ASTNodeType getType() const override { return ASTNodeType::BoolExpr; }
+    void dump(int indent = 0) const override {
+        std::cout << std::string(indent, ' ') << "BoolExpr(" << (value ? "true" : "false") << ")\n";
+    }
+};
+
 // Variable reference (e.g. x)
 class VariableExprAST : public ExprAST {
 public:
@@ -82,7 +114,23 @@ public:
     }
 };
 
-// Binary operation (+, -, *, /)
+// Unary expression (e.g. not x, -y)
+class UnaryExprAST : public ExprAST {
+public:
+    std::string op;
+    ExprASTPtr operand;
+
+    UnaryExprAST(std::string operatorStr, ExprASTPtr expr, SourceLocation loc)
+        : op(std::move(operatorStr)), operand(std::move(expr)) { location = loc; }
+
+    ASTNodeType getType() const override { return ASTNodeType::UnaryExpr; }
+    void dump(int indent = 0) const override {
+        std::cout << std::string(indent, ' ') << "UnaryExpr(" << op << "):\n";
+        if (operand) operand->dump(indent + 2);
+    }
+};
+
+// Binary operation (+, -, *, /, %, ==, !=, <, >, <=, >=, and, or)
 class BinaryExprAST : public ExprAST {
 public:
     std::string op;
@@ -100,7 +148,7 @@ public:
     }
 };
 
-// Function call (e.g. add x 5)
+// Function call (e.g. add x 5, pow(x, 2))
 class CallExprAST : public ExprAST {
 public:
     std::string callee;
@@ -118,7 +166,7 @@ public:
     }
 };
 
-// Variable declaration statement: let x = 10 or let y = add x 5
+// Variable declaration statement: let x = 10
 class VarDeclStmtAST : public StmtAST {
 public:
     std::string varName;
@@ -134,7 +182,7 @@ public:
     }
 };
 
-// Say statement: say "Hello World" or say y
+// Say statement: say "Hello World"
 class SayStmtAST : public StmtAST {
 public:
     ExprASTPtr expression;
@@ -146,6 +194,65 @@ public:
     void dump(int indent = 0) const override {
         std::cout << std::string(indent, ' ') << "SayStmt:\n";
         if (expression) expression->dump(indent + 2);
+    }
+};
+
+// If statement: if condition: ... else: ...
+class IfStmtAST : public StmtAST {
+public:
+    ExprASTPtr condition;
+    StmtASTPtr thenBranch;
+    StmtASTPtr elseBranch;
+
+    IfStmtAST(ExprASTPtr cond, StmtASTPtr thenStmt, StmtASTPtr elseStmt, SourceLocation loc)
+        : condition(std::move(cond)), thenBranch(std::move(thenStmt)), elseBranch(std::move(elseStmt)) { location = loc; }
+
+    ASTNodeType getType() const override { return ASTNodeType::IfStmt; }
+    void dump(int indent = 0) const override {
+        std::cout << std::string(indent, ' ') << "IfStmt:\n";
+        if (condition) condition->dump(indent + 2);
+        std::cout << std::string(indent + 2, ' ') << "Then:\n";
+        if (thenBranch) thenBranch->dump(indent + 4);
+        if (elseBranch) {
+            std::cout << std::string(indent + 2, ' ') << "Else:\n";
+            elseBranch->dump(indent + 4);
+        }
+    }
+};
+
+// Repeat statement: repeat 5: ...
+class RepeatStmtAST : public StmtAST {
+public:
+    ExprASTPtr countExpr;
+    StmtASTPtr body;
+
+    RepeatStmtAST(ExprASTPtr count, StmtASTPtr bodyStmt, SourceLocation loc)
+        : countExpr(std::move(count)), body(std::move(bodyStmt)) { location = loc; }
+
+    ASTNodeType getType() const override { return ASTNodeType::RepeatStmt; }
+    void dump(int indent = 0) const override {
+        std::cout << std::string(indent, ' ') << "RepeatStmt:\n";
+        if (countExpr) countExpr->dump(indent + 2);
+        std::cout << std::string(indent + 2, ' ') << "Body:\n";
+        if (body) body->dump(indent + 4);
+    }
+};
+
+// While statement: while x < 10: ...
+class WhileStmtAST : public StmtAST {
+public:
+    ExprASTPtr condition;
+    StmtASTPtr body;
+
+    WhileStmtAST(ExprASTPtr cond, StmtASTPtr bodyStmt, SourceLocation loc)
+        : condition(std::move(cond)), body(std::move(bodyStmt)) { location = loc; }
+
+    ASTNodeType getType() const override { return ASTNodeType::WhileStmt; }
+    void dump(int indent = 0) const override {
+        std::cout << std::string(indent, ' ') << "WhileStmt:\n";
+        if (condition) condition->dump(indent + 2);
+        std::cout << std::string(indent + 2, ' ') << "Body:\n";
+        if (body) body->dump(indent + 4);
     }
 };
 

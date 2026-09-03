@@ -26,9 +26,14 @@ private:
     StmtASTPtr parseStatement();
     StmtASTPtr parseLetStatement();
     StmtASTPtr parseSayStatement();
+    StmtASTPtr parseIfStatement();
+    StmtASTPtr parseRepeatStatement();
+    StmtASTPtr parseWhileStatement();
+    StmtASTPtr parseBlockStatement();
 
     ExprASTPtr parseExpression();
     ExprASTPtr parseBinaryExpr(int exprPrecedence, ExprASTPtr lhs);
+    ExprASTPtr parseUnaryExpr();
     ExprASTPtr parsePrimary();
     ExprASTPtr parseIdentifierExpr();
 

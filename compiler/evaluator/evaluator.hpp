@@ -41,6 +41,17 @@ struct Value {
         Value val; val.type = ValueType::Null; return val;
     }
 
+    bool isTruthy() const {
+        switch (type) {
+            case ValueType::Bool: return boolVal;
+            case ValueType::Int: return intVal != 0;
+            case ValueType::Float: return floatVal != 0.0;
+            case ValueType::String: return !strVal.empty();
+            case ValueType::Null: return false;
+        }
+        return false;
+    }
+
     void print(std::ostream& os = std::cout) const {
         switch (type) {
             case ValueType::Int: os << intVal; break;
@@ -65,6 +76,7 @@ public:
 private:
     void executeStmt(const StmtAST& stmt);
     Value evalCallExpr(const CallExprAST& callExpr);
+    Value evalUnaryExpr(const UnaryExprAST& unExpr);
     Value evalBinaryExpr(const BinaryExprAST& binExpr);
 
     std::unordered_map<std::string, Value> m_environment;

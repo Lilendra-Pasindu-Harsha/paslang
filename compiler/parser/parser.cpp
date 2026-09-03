@@ -6,10 +6,19 @@
 namespace paslang {
 
 static const std::map<TokenType, int> OperatorPrecedence = {
-    {TokenType::Plus, 20},
-    {TokenType::Minus, 20},
+    {TokenType::KwOr, 5},
+    {TokenType::KwAnd, 10},
+    {TokenType::EqualEqual, 15},
+    {TokenType::NotEqual, 15},
+    {TokenType::Less, 20},
+    {TokenType::Greater, 20},
+    {TokenType::LessEqual, 20},
+    {TokenType::GreaterEqual, 20},
+    {TokenType::Plus, 30},
+    {TokenType::Minus, 30},
     {TokenType::Star, 40},
-    {TokenType::Slash, 40}
+    {TokenType::Slash, 40},
+    {TokenType::Percent, 40}
 };
 
 Parser::Parser(std::vector<Token> tokens) : m_tokens(std::move(tokens)) {}
@@ -68,7 +77,7 @@ std::unique_ptr<ProgramAST> Parser::parse() {
 
     while (!isAtEnd()) {
         if (match(TokenType::Newline)) {
-            continue; // Skip extra blank lines
+            continue; // Skip blank lines
         }
         auto stmt = parseStatement();
         if (stmt) {
@@ -88,6 +97,15 @@ StmtASTPtr Parser::parseStatement() {
     }
     if (match(TokenType::KwSay)) {
         return parseSayStatement();
+    }
+    if (match(TokenType::KwIf)) {
+        return parseIfStatement();
+    }
+    if (match(TokenType::KwRepeat)) {
+        return parseRepeatStatement();
+    }
+    if (match(TokenType::KwWhile)) {
+        return parseWhileStatement();
     }
     if (!check(TokenType::Newline) && !check(TokenType::Eof)) {
         if (auto expr = parseExpression()) {
@@ -125,10 +143,99 @@ StmtASTPtr Parser::parseSayStatement() {
     return std::make_unique<SayStmtAST>(std::move(expr), loc);
 }
 
+// if condition: ... else: ...
+StmtASTPtr Parser::parseIfStatement() {
+    SourceLocation loc = previous().location;
+    ExprASTPtr condition = parseExpression();
+    if (!condition) {
+        Diagnostics::error(loc, "Expected condition after 'if'");
+        return nullptr;
+    }
+
+    match(TokenType::Colon); // optional colon
+    match(TokenType::Newline);
+
+    StmtASTPtr thenBranch = parseBlockStatement();
+    StmtASTPtr elseBranch = nullptr;
+
+    while (check(TokenType::Newline)) advance();
+
+    if (match(TokenType::KwElse)) {
+        match(TokenType::Colon);
+        match(TokenType::Newline);
+        elseBranch = parseBlockStatement();
+    }
+
+    return std::make_unique<IfStmtAST>(std::move(condition), std::move(thenBranch), std::move(elseBranch), loc);
+}
+
+// repeat count: ...
+StmtASTPtr Parser::parseRepeatStatement() {
+    SourceLocation loc = previous().location;
+    ExprASTPtr countExpr = parseExpression();
+    if (!countExpr) {
+        Diagnostics::error(loc, "Expected repeat count expression");
+        return nullptr;
+    }
+
+    match(TokenType::Colon);
+    match(TokenType::Newline);
+
+    StmtASTPtr body = parseBlockStatement();
+    return std::make_unique<RepeatStmtAST>(std::move(countExpr), std::move(body), loc);
+}
+
+// while condition: ...
+StmtASTPtr Parser::parseWhileStatement() {
+    SourceLocation loc = previous().location;
+    ExprASTPtr condition = parseExpression();
+    if (!condition) {
+        Diagnostics::error(loc, "Expected condition after 'while'");
+        return nullptr;
+    }
+
+    match(TokenType::Colon);
+    match(TokenType::Newline);
+
+    StmtASTPtr body = parseBlockStatement();
+    return std::make_unique<WhileStmtAST>(std::move(condition), std::move(body), loc);
+}
+
+// Block statement parsing
+StmtASTPtr Parser::parseBlockStatement() {
+    auto block = std::make_unique<BlockStmtAST>();
+    block->location = peek().location;
+
+    // Single statement or body statements until blank/dedent/else
+    while (!isAtEnd() && !check(TokenType::KwElse) && !check(TokenType::Eof)) {
+        if (match(TokenType::Newline)) continue;
+        auto stmt = parseStatement();
+        if (stmt) {
+            block->statements.push_back(std::move(stmt));
+            // In single line block or after statement, break if at newline/eof
+            if (check(TokenType::Newline) || check(TokenType::Eof) || check(TokenType::KwElse)) break;
+        } else {
+            break;
+        }
+    }
+
+    return block;
+}
+
 ExprASTPtr Parser::parseExpression() {
-    auto lhs = parsePrimary();
+    auto lhs = parseUnaryExpr();
     if (!lhs) return nullptr;
     return parseBinaryExpr(0, std::move(lhs));
+}
+
+ExprASTPtr Parser::parseUnaryExpr() {
+    if (match(TokenType::KwNot) || match(TokenType::Minus)) {
+        Token opTok = previous();
+        auto operand = parseUnaryExpr();
+        if (!operand) return nullptr;
+        return std::make_unique<UnaryExprAST>(opTok.text, std::move(operand), opTok.location);
+    }
+    return parsePrimary();
 }
 
 ExprASTPtr Parser::parseBinaryExpr(int exprPrecedence, ExprASTPtr lhs) {
@@ -141,7 +248,7 @@ ExprASTPtr Parser::parseBinaryExpr(int exprPrecedence, ExprASTPtr lhs) {
         Token opTok = advance();
         std::string opStr = opTok.text;
 
-        auto rhs = parsePrimary();
+        auto rhs = parseUnaryExpr();
         if (!rhs) return nullptr;
 
         int nextPrecedence = getTokPrecedence();
@@ -169,6 +276,12 @@ ExprASTPtr Parser::parsePrimary() {
         return std::make_unique<StringExprAST>(tok.text, tok.location);
     }
 
+    if (check(TokenType::BoolLit)) {
+        Token tok = advance();
+        bool val = (tok.text == "true");
+        return std::make_unique<BoolExprAST>(val, tok.location);
+    }
+
     if (check(TokenType::Identifier)) {
         return parseIdentifierExpr();
     }
@@ -180,7 +293,6 @@ ExprASTPtr Parser::parsePrimary() {
         return expr;
     }
 
-    Diagnostics::error(peek().location, "Unexpected token '" + peek().text + "' in expression");
     return nullptr;
 }
 
@@ -203,14 +315,14 @@ ExprASTPtr Parser::parseIdentifierExpr() {
         return std::make_unique<CallExprAST>(idTok.text, std::move(args), loc);
     }
 
-    // Check space-separated call syntax for built-in functions: add x 5
-    bool isSpaceCallFunc = (idTok.text == "add" || idTok.text == "sub" || idTok.text == "mul" || idTok.text == "div");
+    // Check space-separated call syntax for built-in functions: add x 5, sub a b, mul a b, div a b, mod a b, pow x 2
+    bool isSpaceCallFunc = (idTok.text == "add" || idTok.text == "sub" || idTok.text == "mul" || idTok.text == "div" || idTok.text == "mod" || idTok.text == "pow" || idTok.text == "min" || idTok.text == "max" || idTok.text == "sqrt" || idTok.text == "abs");
     if (isSpaceCallFunc && !check(TokenType::Newline) && !check(TokenType::Eof) &&
         (check(TokenType::Identifier) || check(TokenType::NumberInt) || check(TokenType::NumberFloat) || check(TokenType::StringLit))) {
         
         std::vector<ExprASTPtr> args;
         while (!check(TokenType::Newline) && !check(TokenType::Eof) &&
-               getTokPrecedence() == -1 && !check(TokenType::RParen) && !check(TokenType::Comma)) {
+               getTokPrecedence() == -1 && !check(TokenType::RParen) && !check(TokenType::Comma) && !check(TokenType::Colon)) {
             
             auto arg = parsePrimary();
             if (!arg) break;

@@ -11,6 +11,13 @@ enum class TokenType {
     // Keywords
     KwLet,
     KwSay,
+    KwIf,
+    KwElse,
+    KwRepeat,
+    KwWhile,
+    KwAnd,
+    KwOr,
+    KwNot,
 
     // Identifiers and Literals
     Identifier,
@@ -21,13 +28,21 @@ enum class TokenType {
 
     // Operators and Symbols
     Assign,       // =
+    EqualEqual,   // ==
+    NotEqual,     // !=
+    Less,         // <
+    Greater,      // >
+    LessEqual,    // <=
+    GreaterEqual, // >=
     Plus,         // +
     Minus,        // -
     Star,         // *
     Slash,        // /
+    Percent,      // %
     LParen,       // (
     RParen,       // )
     Comma,        // ,
+    Colon,        // :
 
     // Formatting
     Newline,
@@ -48,6 +63,7 @@ public:
 
 private:
     char peek() const;
+    char peekNext() const;
     char advance();
     bool isAtEnd() const;
     void skipWhitespace();
