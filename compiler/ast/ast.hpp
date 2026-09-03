@@ -13,14 +13,24 @@ enum class ASTNodeType {
     Program,
     BlockStmt,
     VarDeclStmt,
+    AssignmentStmt,
     SayStmt,
     IfStmt,
     RepeatStmt,
     WhileStmt,
+    ForInStmt,
+    FunctionDeclStmt,
+    ReturnStmt,
+    ClassDeclStmt,
     ExprStmt,
     NumberExpr,
     StringExpr,
     BoolExpr,
+    NullExpr,
+    ArrayExpr,
+    MapExpr,
+    IndexExpr,
+    MemberAccessExpr,
     VariableExpr,
     BinaryExpr,
     UnaryExpr,
@@ -35,15 +45,18 @@ public:
     SourceLocation location;
 };
 
-using ASTNodePtr = std::unique_ptr<ASTNode>;
+class ExprAST;
+class StmtAST;
+
+using ASTNodePtr = std::shared_ptr<ASTNode>;
+using ExprASTPtr = std::shared_ptr<ExprAST>;
+using StmtASTPtr = std::shared_ptr<StmtAST>;
 
 class ExprAST : public ASTNode {};
-using ExprASTPtr = std::unique_ptr<ExprAST>;
 
 class StmtAST : public ASTNode {};
-using StmtASTPtr = std::unique_ptr<StmtAST>;
 
-// Block statement (sequence of statements)
+// Block statement
 class BlockStmtAST : public StmtAST {
 public:
     std::vector<StmtASTPtr> statements;
@@ -57,7 +70,7 @@ public:
     }
 };
 
-// Literal number (int or float)
+// Literal number
 class NumberExprAST : public ExprAST {
 public:
     double value;
@@ -100,7 +113,86 @@ public:
     }
 };
 
-// Variable reference (e.g. x)
+// Literal null/nil
+class NullExprAST : public ExprAST {
+public:
+    explicit NullExprAST(SourceLocation loc) { location = loc; }
+    ASTNodeType getType() const override { return ASTNodeType::NullExpr; }
+    void dump(int indent = 0) const override {
+        std::cout << std::string(indent, ' ') << "NullExpr()\n";
+    }
+};
+
+// Array expression [1, 2, 3]
+class ArrayExprAST : public ExprAST {
+public:
+    std::vector<ExprASTPtr> elements;
+
+    ArrayExprAST(std::vector<ExprASTPtr> elems, SourceLocation loc)
+        : elements(std::move(elems)) { location = loc; }
+
+    ASTNodeType getType() const override { return ASTNodeType::ArrayExpr; }
+    void dump(int indent = 0) const override {
+        std::cout << std::string(indent, ' ') << "ArrayExpr:\n";
+        for (const auto& elem : elements) {
+            if (elem) elem->dump(indent + 2);
+        }
+    }
+};
+
+// Map expression { name: "Alex", age: 25 }
+class MapExprAST : public ExprAST {
+public:
+    std::vector<std::string> keys;
+    std::vector<ExprASTPtr> values;
+
+    MapExprAST(std::vector<std::string> k, std::vector<ExprASTPtr> v, SourceLocation loc)
+        : keys(std::move(k)), values(std::move(v)) { location = loc; }
+
+    ASTNodeType getType() const override { return ASTNodeType::MapExpr; }
+    void dump(int indent = 0) const override {
+        std::cout << std::string(indent, ' ') << "MapExpr:\n";
+        for (size_t i = 0; i < keys.size(); ++i) {
+            std::cout << std::string(indent + 2, ' ') << keys[i] << ":\n";
+            if (i < values.size() && values[i]) values[i]->dump(indent + 4);
+        }
+    }
+};
+
+// Index expression target[index]
+class IndexExprAST : public ExprAST {
+public:
+    ExprASTPtr target;
+    ExprASTPtr index;
+
+    IndexExprAST(ExprASTPtr t, ExprASTPtr idx, SourceLocation loc)
+        : target(std::move(t)), index(std::move(idx)) { location = loc; }
+
+    ASTNodeType getType() const override { return ASTNodeType::IndexExpr; }
+    void dump(int indent = 0) const override {
+        std::cout << std::string(indent, ' ') << "IndexExpr:\n";
+        if (target) target->dump(indent + 2);
+        if (index) index->dump(indent + 2);
+    }
+};
+
+// Member access obj.member
+class MemberAccessExprAST : public ExprAST {
+public:
+    ExprASTPtr object;
+    std::string member;
+
+    MemberAccessExprAST(ExprASTPtr obj, std::string m, SourceLocation loc)
+        : object(std::move(obj)), member(std::move(m)) { location = loc; }
+
+    ASTNodeType getType() const override { return ASTNodeType::MemberAccessExpr; }
+    void dump(int indent = 0) const override {
+        std::cout << std::string(indent, ' ') << "MemberAccess(" << member << "):\n";
+        if (object) object->dump(indent + 2);
+    }
+};
+
+// Variable reference
 class VariableExprAST : public ExprAST {
 public:
     std::string name;
@@ -114,7 +206,7 @@ public:
     }
 };
 
-// Unary expression (e.g. not x, -y)
+// Unary expression
 class UnaryExprAST : public ExprAST {
 public:
     std::string op;
@@ -130,7 +222,7 @@ public:
     }
 };
 
-// Binary operation (+, -, *, /, %, ==, !=, <, >, <=, >=, and, or)
+// Binary expression
 class BinaryExprAST : public ExprAST {
 public:
     std::string op;
@@ -148,25 +240,30 @@ public:
     }
 };
 
-// Function call (e.g. add x 5, pow(x, 2))
+// Function call
 class CallExprAST : public ExprAST {
 public:
     std::string callee;
+    ExprASTPtr calleeExpr; // for method calls like p.introduce()
     std::vector<ExprASTPtr> args;
 
     CallExprAST(std::string func, std::vector<ExprASTPtr> a, SourceLocation loc)
         : callee(std::move(func)), args(std::move(a)) { location = loc; }
 
+    CallExprAST(ExprASTPtr funcExpr, std::vector<ExprASTPtr> a, SourceLocation loc)
+        : calleeExpr(std::move(funcExpr)), args(std::move(a)) { location = loc; }
+
     ASTNodeType getType() const override { return ASTNodeType::CallExpr; }
     void dump(int indent = 0) const override {
-        std::cout << std::string(indent, ' ') << "CallExpr(" << callee << "):\n";
+        std::cout << std::string(indent, ' ') << "CallExpr(" << (calleeExpr ? "method" : callee) << "):\n";
+        if (calleeExpr) calleeExpr->dump(indent + 2);
         for (const auto& arg : args) {
             if (arg) arg->dump(indent + 2);
         }
     }
 };
 
-// Variable declaration statement: let x = 10
+// Variable declaration statement
 class VarDeclStmtAST : public StmtAST {
 public:
     std::string varName;
@@ -182,7 +279,24 @@ public:
     }
 };
 
-// Say statement: say "Hello World"
+// Assignment statement (e.g. x = 10, p.name = "Alex", arr[0] = 5)
+class AssignmentStmtAST : public StmtAST {
+public:
+    ExprASTPtr target;
+    ExprASTPtr value;
+
+    AssignmentStmtAST(ExprASTPtr t, ExprASTPtr val, SourceLocation loc)
+        : target(std::move(t)), value(std::move(val)) { location = loc; }
+
+    ASTNodeType getType() const override { return ASTNodeType::AssignmentStmt; }
+    void dump(int indent = 0) const override {
+        std::cout << std::string(indent, ' ') << "AssignmentStmt:\n";
+        if (target) target->dump(indent + 2);
+        if (value) value->dump(indent + 2);
+    }
+};
+
+// Say statement
 class SayStmtAST : public StmtAST {
 public:
     ExprASTPtr expression;
@@ -197,7 +311,76 @@ public:
     }
 };
 
-// If statement: if condition: ... else: ...
+// Return statement
+class ReturnStmtAST : public StmtAST {
+public:
+    ExprASTPtr value;
+
+    ReturnStmtAST(ExprASTPtr val, SourceLocation loc)
+        : value(std::move(val)) { location = loc; }
+
+    ASTNodeType getType() const override { return ASTNodeType::ReturnStmt; }
+    void dump(int indent = 0) const override {
+        std::cout << std::string(indent, ' ') << "ReturnStmt:\n";
+        if (value) value->dump(indent + 2);
+    }
+};
+
+// Function declaration statement: function add(a, b): ...
+class FunctionDeclStmtAST : public StmtAST {
+public:
+    std::string name;
+    std::vector<std::string> params;
+    StmtASTPtr body;
+
+    FunctionDeclStmtAST(std::string n, std::vector<std::string> p, StmtASTPtr b, SourceLocation loc)
+        : name(std::move(n)), params(std::move(p)), body(std::move(b)) { location = loc; }
+
+    ASTNodeType getType() const override { return ASTNodeType::FunctionDeclStmt; }
+    void dump(int indent = 0) const override {
+        std::cout << std::string(indent, ' ') << "FunctionDecl(" << name << "):\n";
+        if (body) body->dump(indent + 2);
+    }
+};
+
+// For In Loop statement: for item in items: ...
+class ForInStmtAST : public StmtAST {
+public:
+    std::string varName;
+    ExprASTPtr iterable;
+    StmtASTPtr body;
+
+    ForInStmtAST(std::string var, ExprASTPtr iter, StmtASTPtr b, SourceLocation loc)
+        : varName(std::move(var)), iterable(std::move(iter)), body(std::move(b)) { location = loc; }
+
+    ASTNodeType getType() const override { return ASTNodeType::ForInStmt; }
+    void dump(int indent = 0) const override {
+        std::cout << std::string(indent, ' ') << "ForInStmt(for " << varName << " in):\n";
+        if (iterable) iterable->dump(indent + 2);
+        if (body) body->dump(indent + 2);
+    }
+};
+
+// Class Declaration Statement: class Person: ...
+class ClassDeclStmtAST : public StmtAST {
+public:
+    std::string name;
+    std::vector<std::string> fields;
+    std::vector<std::shared_ptr<FunctionDeclStmtAST>> methods;
+
+    ClassDeclStmtAST(std::string n, std::vector<std::string> f, std::vector<std::shared_ptr<FunctionDeclStmtAST>> m, SourceLocation loc)
+        : name(std::move(n)), fields(std::move(f)), methods(std::move(m)) { location = loc; }
+
+    ASTNodeType getType() const override { return ASTNodeType::ClassDeclStmt; }
+    void dump(int indent = 0) const override {
+        std::cout << std::string(indent, ' ') << "ClassDecl(" << name << "):\n";
+        for (const auto& method : methods) {
+            if (method) method->dump(indent + 2);
+        }
+    }
+};
+
+// If statement
 class IfStmtAST : public StmtAST {
 public:
     ExprASTPtr condition;
@@ -220,7 +403,7 @@ public:
     }
 };
 
-// Repeat statement: repeat 5: ...
+// Repeat statement
 class RepeatStmtAST : public StmtAST {
 public:
     ExprASTPtr countExpr;
@@ -238,7 +421,7 @@ public:
     }
 };
 
-// While statement: while x < 10: ...
+// While statement
 class WhileStmtAST : public StmtAST {
 public:
     ExprASTPtr condition;

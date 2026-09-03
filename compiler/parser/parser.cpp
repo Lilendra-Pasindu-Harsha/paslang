@@ -107,9 +107,26 @@ StmtASTPtr Parser::parseStatement() {
     if (match(TokenType::KwWhile)) {
         return parseWhileStatement();
     }
+    if (match(TokenType::KwFor)) {
+        return parseForInStatement();
+    }
+    if (match(TokenType::KwFunction)) {
+        return parseFunctionDeclaration();
+    }
+    if (match(TokenType::KwReturn)) {
+        return parseReturnStatement();
+    }
+    if (match(TokenType::KwClass)) {
+        return parseClassDeclaration();
+    }
     if (!check(TokenType::Newline) && !check(TokenType::Eof)) {
+        SourceLocation loc = peek().location;
         if (auto expr = parseExpression()) {
-            return std::make_unique<SayStmtAST>(std::move(expr), previous().location);
+            if (match(TokenType::Assign)) {
+                auto val = parseExpression();
+                return std::make_shared<AssignmentStmtAST>(std::move(expr), std::move(val), loc);
+            }
+            return std::make_shared<SayStmtAST>(std::move(expr), loc);
         }
     }
     return nullptr;
@@ -128,7 +145,7 @@ StmtASTPtr Parser::parseLetStatement() {
         return nullptr;
     }
 
-    return std::make_unique<VarDeclStmtAST>(varNameTok.text, std::move(initExpr), loc);
+    return std::make_shared<VarDeclStmtAST>(varNameTok.text, std::move(initExpr), loc);
 }
 
 // say "Hello World" or say y
@@ -140,7 +157,83 @@ StmtASTPtr Parser::parseSayStatement() {
         return nullptr;
     }
 
-    return std::make_unique<SayStmtAST>(std::move(expr), loc);
+    return std::make_shared<SayStmtAST>(std::move(expr), loc);
+}
+
+// return <expr>
+StmtASTPtr Parser::parseReturnStatement() {
+    SourceLocation loc = previous().location;
+    ExprASTPtr val = nullptr;
+    if (!check(TokenType::Newline) && !check(TokenType::Eof)) {
+        val = parseExpression();
+    }
+    return std::make_shared<ReturnStmtAST>(std::move(val), loc);
+}
+
+// function name(param1, param2): ...
+StmtASTPtr Parser::parseFunctionDeclaration() {
+    SourceLocation loc = previous().location;
+    Token nameTok = consume(TokenType::Identifier, "Expected function name after 'function'");
+
+    consume(TokenType::LParen, "Expected '(' after function name");
+    std::vector<std::string> params;
+    if (!check(TokenType::RParen)) {
+        while (true) {
+            Token pTok = consume(TokenType::Identifier, "Expected parameter name");
+            params.push_back(pTok.text);
+            if (!match(TokenType::Comma)) break;
+        }
+    }
+    consume(TokenType::RParen, "Expected ')' after parameter list");
+    match(TokenType::Colon);
+    match(TokenType::Newline);
+
+    StmtASTPtr body = parseBlockStatement();
+    return std::make_shared<FunctionDeclStmtAST>(nameTok.text, std::move(params), std::move(body), loc);
+}
+
+// class Person: ...
+StmtASTPtr Parser::parseClassDeclaration() {
+    SourceLocation loc = previous().location;
+    Token classNameTok = consume(TokenType::Identifier, "Expected class name after 'class'");
+    match(TokenType::Colon);
+    match(TokenType::Newline);
+
+    std::vector<std::string> fields;
+    std::vector<std::shared_ptr<FunctionDeclStmtAST>> methods;
+
+    while (!isAtEnd() && !check(TokenType::KwClass) && !check(TokenType::Eof)) {
+        if (match(TokenType::Newline)) continue;
+
+        if (match(TokenType::KwFunction)) {
+            auto func = parseFunctionDeclaration();
+            if (func && func->getType() == ASTNodeType::FunctionDeclStmt) {
+                methods.push_back(std::static_pointer_cast<FunctionDeclStmtAST>(func));
+            }
+        } else if (check(TokenType::Identifier)) {
+            Token fieldTok = advance();
+            fields.push_back(fieldTok.text);
+            match(TokenType::Newline);
+        } else {
+            break;
+        }
+    }
+
+    return std::make_shared<ClassDeclStmtAST>(classNameTok.text, std::move(fields), std::move(methods), loc);
+}
+
+// for item in items: ...
+StmtASTPtr Parser::parseForInStatement() {
+    SourceLocation loc = previous().location;
+    Token varTok = consume(TokenType::Identifier, "Expected loop variable name after 'for'");
+    consume(TokenType::KwIn, "Expected 'in' after loop variable");
+    ExprASTPtr iterable = parseExpression();
+
+    match(TokenType::Colon);
+    match(TokenType::Newline);
+
+    StmtASTPtr body = parseBlockStatement();
+    return std::make_shared<ForInStmtAST>(varTok.text, std::move(iterable), std::move(body), loc);
 }
 
 // if condition: ... else: ...
@@ -152,7 +245,7 @@ StmtASTPtr Parser::parseIfStatement() {
         return nullptr;
     }
 
-    match(TokenType::Colon); // optional colon
+    match(TokenType::Colon);
     match(TokenType::Newline);
 
     StmtASTPtr thenBranch = parseBlockStatement();
@@ -166,7 +259,7 @@ StmtASTPtr Parser::parseIfStatement() {
         elseBranch = parseBlockStatement();
     }
 
-    return std::make_unique<IfStmtAST>(std::move(condition), std::move(thenBranch), std::move(elseBranch), loc);
+    return std::make_shared<IfStmtAST>(std::move(condition), std::move(thenBranch), std::move(elseBranch), loc);
 }
 
 // repeat count: ...
@@ -182,7 +275,7 @@ StmtASTPtr Parser::parseRepeatStatement() {
     match(TokenType::Newline);
 
     StmtASTPtr body = parseBlockStatement();
-    return std::make_unique<RepeatStmtAST>(std::move(countExpr), std::move(body), loc);
+    return std::make_shared<RepeatStmtAST>(std::move(countExpr), std::move(body), loc);
 }
 
 // while condition: ...
@@ -198,21 +291,19 @@ StmtASTPtr Parser::parseWhileStatement() {
     match(TokenType::Newline);
 
     StmtASTPtr body = parseBlockStatement();
-    return std::make_unique<WhileStmtAST>(std::move(condition), std::move(body), loc);
+    return std::make_shared<WhileStmtAST>(std::move(condition), std::move(body), loc);
 }
 
 // Block statement parsing
 StmtASTPtr Parser::parseBlockStatement() {
-    auto block = std::make_unique<BlockStmtAST>();
+    auto block = std::make_shared<BlockStmtAST>();
     block->location = peek().location;
 
-    // Single statement or body statements until blank/dedent/else
     while (!isAtEnd() && !check(TokenType::KwElse) && !check(TokenType::Eof)) {
         if (match(TokenType::Newline)) continue;
         auto stmt = parseStatement();
         if (stmt) {
             block->statements.push_back(std::move(stmt));
-            // In single line block or after statement, break if at newline/eof
             if (check(TokenType::Newline) || check(TokenType::Eof) || check(TokenType::KwElse)) break;
         } else {
             break;
@@ -233,7 +324,7 @@ ExprASTPtr Parser::parseUnaryExpr() {
         Token opTok = previous();
         auto operand = parseUnaryExpr();
         if (!operand) return nullptr;
-        return std::make_unique<UnaryExprAST>(opTok.text, std::move(operand), opTok.location);
+        return std::make_shared<UnaryExprAST>(opTok.text, std::move(operand), opTok.location);
     }
     return parsePrimary();
 }
@@ -257,50 +348,128 @@ ExprASTPtr Parser::parseBinaryExpr(int exprPrecedence, ExprASTPtr lhs) {
             if (!rhs) return nullptr;
         }
 
-        lhs = std::make_unique<BinaryExprAST>(opStr, std::move(lhs), std::move(rhs), opTok.location);
+        lhs = std::make_shared<BinaryExprAST>(opStr, std::move(lhs), std::move(rhs), opTok.location);
     }
 }
 
 ExprASTPtr Parser::parsePrimary() {
     if (isAtEnd()) return nullptr;
 
+    ExprASTPtr expr = nullptr;
+
     if (check(TokenType::NumberInt) || check(TokenType::NumberFloat)) {
         Token tok = advance();
         double val = std::stod(tok.text);
         bool isFloat = (tok.type == TokenType::NumberFloat);
-        return std::make_unique<NumberExprAST>(val, isFloat, tok.location);
+        expr = std::make_shared<NumberExprAST>(val, isFloat, tok.location);
     }
-
-    if (check(TokenType::StringLit)) {
+    else if (check(TokenType::StringLit)) {
         Token tok = advance();
-        return std::make_unique<StringExprAST>(tok.text, tok.location);
+        expr = std::make_shared<StringExprAST>(tok.text, tok.location);
     }
-
-    if (check(TokenType::BoolLit)) {
+    else if (check(TokenType::BoolLit)) {
         Token tok = advance();
         bool val = (tok.text == "true");
-        return std::make_unique<BoolExprAST>(val, tok.location);
+        expr = std::make_shared<BoolExprAST>(val, tok.location);
     }
-
-    if (check(TokenType::Identifier)) {
-        return parseIdentifierExpr();
+    else if (check(TokenType::KwNull)) {
+        Token tok = advance();
+        expr = std::make_shared<NullExprAST>(tok.location);
     }
-
-    if (match(TokenType::LParen)) {
+    else if (check(TokenType::LBracket)) {
+        expr = parseArrayExpr();
+    }
+    else if (check(TokenType::LBrace)) {
+        expr = parseMapExpr();
+    }
+    else if (check(TokenType::Identifier)) {
+        expr = parseIdentifierExpr();
+    }
+    else if (match(TokenType::LParen)) {
         SourceLocation loc = previous().location;
-        auto expr = parseExpression();
+        expr = parseExpression();
         consume(TokenType::RParen, "Expected ')' after expression");
-        return expr;
     }
 
-    return nullptr;
+    if (!expr) return nullptr;
+
+    // Handle postfix index arr[i] and member access obj.member
+    while (true) {
+        if (match(TokenType::LBracket)) {
+            SourceLocation loc = previous().location;
+            auto indexExpr = parseExpression();
+            consume(TokenType::RBracket, "Expected ']' after index expression");
+            expr = std::make_shared<IndexExprAST>(std::move(expr), std::move(indexExpr), loc);
+        } else if (match(TokenType::Dot)) {
+            SourceLocation loc = previous().location;
+            Token memberTok = consume(TokenType::Identifier, "Expected field or method name after '.'");
+            if (match(TokenType::LParen)) {
+                std::vector<ExprASTPtr> args;
+                if (!check(TokenType::RParen)) {
+                    while (true) {
+                        if (auto arg = parseExpression()) {
+                            args.push_back(std::move(arg));
+                        }
+                        if (!match(TokenType::Comma)) break;
+                    }
+                }
+                consume(TokenType::RParen, "Expected ')' after argument list");
+                auto memAccess = std::make_shared<MemberAccessExprAST>(std::move(expr), memberTok.text, loc);
+                expr = std::make_shared<CallExprAST>(std::move(memAccess), std::move(args), loc);
+            } else {
+                expr = std::make_shared<MemberAccessExprAST>(std::move(expr), memberTok.text, loc);
+            }
+        } else {
+            break;
+        }
+    }
+
+    return expr;
+}
+
+// Array expression [1, 2, 3]
+ExprASTPtr Parser::parseArrayExpr() {
+    SourceLocation loc = peek().location;
+    consume(TokenType::LBracket, "Expected '['");
+    std::vector<ExprASTPtr> elements;
+    if (!check(TokenType::RBracket)) {
+        while (true) {
+            if (auto elem = parseExpression()) {
+                elements.push_back(std::move(elem));
+            }
+            if (!match(TokenType::Comma)) break;
+        }
+    }
+    consume(TokenType::RBracket, "Expected ']' after array elements");
+    return std::make_shared<ArrayExprAST>(std::move(elements), loc);
+}
+
+// Map expression { name: "Alex", age: 25 }
+ExprASTPtr Parser::parseMapExpr() {
+    SourceLocation loc = peek().location;
+    consume(TokenType::LBrace, "Expected '{'");
+    std::vector<std::string> keys;
+    std::vector<ExprASTPtr> values;
+
+    if (!check(TokenType::RBrace)) {
+        while (true) {
+            Token keyTok = consume(TokenType::Identifier, "Expected key identifier in map");
+            match(TokenType::Colon);
+            auto valExpr = parseExpression();
+            keys.push_back(keyTok.text);
+            values.push_back(std::move(valExpr));
+            if (!match(TokenType::Comma)) break;
+        }
+    }
+    consume(TokenType::RBrace, "Expected '}' after map entries");
+    return std::make_shared<MapExprAST>(std::move(keys), std::move(values), loc);
 }
 
 ExprASTPtr Parser::parseIdentifierExpr() {
     Token idTok = advance();
     SourceLocation loc = idTok.location;
 
-    // Check parenthesized call syntax: function_name(arg1, arg2)
+    // Parenthesized function call syntax: func(a, b)
     if (match(TokenType::LParen)) {
         std::vector<ExprASTPtr> args;
         if (!check(TokenType::RParen)) {
@@ -312,17 +481,17 @@ ExprASTPtr Parser::parseIdentifierExpr() {
             }
         }
         consume(TokenType::RParen, "Expected ')' after argument list");
-        return std::make_unique<CallExprAST>(idTok.text, std::move(args), loc);
+        return std::make_shared<CallExprAST>(idTok.text, std::move(args), loc);
     }
 
-    // Check space-separated call syntax for built-in functions: add x 5, sub a b, mul a b, div a b, mod a b, pow x 2
+    // Space-separated call syntax for built-in math functions: add x 5, sub a b, mul a b, div a b, mod a b, pow x 2, sqrt x
     bool isSpaceCallFunc = (idTok.text == "add" || idTok.text == "sub" || idTok.text == "mul" || idTok.text == "div" || idTok.text == "mod" || idTok.text == "pow" || idTok.text == "min" || idTok.text == "max" || idTok.text == "sqrt" || idTok.text == "abs");
     if (isSpaceCallFunc && !check(TokenType::Newline) && !check(TokenType::Eof) &&
         (check(TokenType::Identifier) || check(TokenType::NumberInt) || check(TokenType::NumberFloat) || check(TokenType::StringLit))) {
         
         std::vector<ExprASTPtr> args;
         while (!check(TokenType::Newline) && !check(TokenType::Eof) &&
-               getTokPrecedence() == -1 && !check(TokenType::RParen) && !check(TokenType::Comma) && !check(TokenType::Colon)) {
+               getTokPrecedence() == -1 && !check(TokenType::RParen) && !check(TokenType::Comma) && !check(TokenType::Colon) && !check(TokenType::LBracket)) {
             
             auto arg = parsePrimary();
             if (!arg) break;
@@ -330,12 +499,12 @@ ExprASTPtr Parser::parseIdentifierExpr() {
         }
 
         if (!args.empty()) {
-            return std::make_unique<CallExprAST>(idTok.text, std::move(args), loc);
+            return std::make_shared<CallExprAST>(idTok.text, std::move(args), loc);
         }
     }
 
     // Single variable reference
-    return std::make_unique<VariableExprAST>(idTok.text, loc);
+    return std::make_shared<VariableExprAST>(idTok.text, loc);
 }
 
 } // namespace paslang

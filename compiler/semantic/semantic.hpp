@@ -18,7 +18,9 @@ private:
     bool analyzeExpr(const ExprAST& expr);
 
     std::unordered_set<std::string> m_definedVars;
-    std::unordered_map<std::string, int> m_builtins; // Builtin name -> expected argument count (-1 for variadic)
+    std::unordered_set<std::string> m_definedFunctions;
+    std::unordered_set<std::string> m_definedClasses;
+    std::unordered_map<std::string, int> m_builtins;
 };
 
 } // namespace paslang

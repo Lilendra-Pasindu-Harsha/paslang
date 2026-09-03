@@ -11,9 +11,15 @@ std::string tokenTypeToString(TokenType type) {
         case TokenType::KwElse: return "KW_ELSE";
         case TokenType::KwRepeat: return "KW_REPEAT";
         case TokenType::KwWhile: return "KW_WHILE";
+        case TokenType::KwFor: return "KW_FOR";
+        case TokenType::KwIn: return "KW_IN";
+        case TokenType::KwFunction: return "KW_FUNCTION";
+        case TokenType::KwReturn: return "KW_RETURN";
+        case TokenType::KwClass: return "KW_CLASS";
         case TokenType::KwAnd: return "KW_AND";
         case TokenType::KwOr: return "KW_OR";
         case TokenType::KwNot: return "KW_NOT";
+        case TokenType::KwNull: return "KW_NULL";
         case TokenType::Identifier: return "IDENTIFIER";
         case TokenType::NumberInt: return "NUMBER_INT";
         case TokenType::NumberFloat: return "NUMBER_FLOAT";
@@ -33,8 +39,13 @@ std::string tokenTypeToString(TokenType type) {
         case TokenType::Percent: return "PERCENT";
         case TokenType::LParen: return "LPAREN";
         case TokenType::RParen: return "RPAREN";
+        case TokenType::LBracket: return "LBRACKET";
+        case TokenType::RBracket: return "RBRACKET";
+        case TokenType::LBrace: return "LBRACE";
+        case TokenType::RBrace: return "RBRACE";
         case TokenType::Comma: return "COMMA";
         case TokenType::Colon: return "COLON";
+        case TokenType::Dot: return "DOT";
         case TokenType::Newline: return "NEWLINE";
         case TokenType::Eof: return "EOF";
         default: return "UNKNOWN";
@@ -122,9 +133,15 @@ Token Lexer::lexIdentifier() {
     else if (text == "else") type = TokenType::KwElse;
     else if (text == "repeat") type = TokenType::KwRepeat;
     else if (text == "while") type = TokenType::KwWhile;
+    else if (text == "for") type = TokenType::KwFor;
+    else if (text == "in") type = TokenType::KwIn;
+    else if (text == "function" || text == "func") type = TokenType::KwFunction;
+    else if (text == "return") type = TokenType::KwReturn;
+    else if (text == "class") type = TokenType::KwClass;
     else if (text == "and") type = TokenType::KwAnd;
     else if (text == "or") type = TokenType::KwOr;
     else if (text == "not") type = TokenType::KwNot;
+    else if (text == "null" || text == "nil") type = TokenType::KwNull;
     else if (text == "true" || text == "false") type = TokenType::BoolLit;
 
     return Token{type, text, {m_filename, m_line, startCol}};
@@ -208,8 +225,13 @@ std::vector<Token> Lexer::tokenize() {
                     case '%': tokens.push_back(Token{TokenType::Percent, "%", {m_filename, m_line, startCol}}); break;
                     case '(': tokens.push_back(Token{TokenType::LParen, "(", {m_filename, m_line, startCol}}); break;
                     case ')': tokens.push_back(Token{TokenType::RParen, ")", {m_filename, m_line, startCol}}); break;
+                    case '[': tokens.push_back(Token{TokenType::LBracket, "[", {m_filename, m_line, startCol}}); break;
+                    case ']': tokens.push_back(Token{TokenType::RBracket, "]", {m_filename, m_line, startCol}}); break;
+                    case '{': tokens.push_back(Token{TokenType::LBrace, "{", {m_filename, m_line, startCol}}); break;
+                    case '}': tokens.push_back(Token{TokenType::RBrace, "}", {m_filename, m_line, startCol}}); break;
                     case ',': tokens.push_back(Token{TokenType::Comma, ",", {m_filename, m_line, startCol}}); break;
                     case ':': tokens.push_back(Token{TokenType::Colon, ":", {m_filename, m_line, startCol}}); break;
+                    case '.': tokens.push_back(Token{TokenType::Dot, ".", {m_filename, m_line, startCol}}); break;
                     default:
                         Diagnostics::error({m_filename, m_line, startCol}, std::string("Unexpected character: ") + c);
                         tokens.push_back(Token{TokenType::Unknown, std::string(1, c), {m_filename, m_line, startCol}});

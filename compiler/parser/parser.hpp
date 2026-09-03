@@ -29,6 +29,10 @@ private:
     StmtASTPtr parseIfStatement();
     StmtASTPtr parseRepeatStatement();
     StmtASTPtr parseWhileStatement();
+    StmtASTPtr parseForInStatement();
+    StmtASTPtr parseFunctionDeclaration();
+    StmtASTPtr parseReturnStatement();
+    StmtASTPtr parseClassDeclaration();
     StmtASTPtr parseBlockStatement();
 
     ExprASTPtr parseExpression();
@@ -36,6 +40,8 @@ private:
     ExprASTPtr parseUnaryExpr();
     ExprASTPtr parsePrimary();
     ExprASTPtr parseIdentifierExpr();
+    ExprASTPtr parseArrayExpr();
+    ExprASTPtr parseMapExpr();
 
     int getTokPrecedence() const;
 

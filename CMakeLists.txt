@@ -20,6 +20,8 @@ set(COMPILER_SOURCES
     compiler/semantic/semantic.cpp
     compiler/evaluator/evaluator.hpp
     compiler/evaluator/evaluator.cpp
+    compiler/codegen/codegen_c.hpp
+    compiler/codegen/codegen_c.cpp
 )
 
 add_library(paslang_core ${COMPILER_SOURCES})
@@ -34,6 +36,7 @@ set(TEST_SOURCES
     tests/test_lexer.cpp
     tests/test_parser.cpp
     tests/test_evaluator.cpp
+    tests/test_codegen.cpp
 )
 
 add_executable(paslang_tests ${TEST_SOURCES})

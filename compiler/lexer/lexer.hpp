@@ -15,9 +15,15 @@ enum class TokenType {
     KwElse,
     KwRepeat,
     KwWhile,
+    KwFor,
+    KwIn,
+    KwFunction,
+    KwReturn,
+    KwClass,
     KwAnd,
     KwOr,
     KwNot,
+    KwNull,
 
     // Identifiers and Literals
     Identifier,
@@ -41,8 +47,13 @@ enum class TokenType {
     Percent,      // %
     LParen,       // (
     RParen,       // )
+    LBracket,     // [
+    RBracket,     // ]
+    LBrace,       // {
+    RBrace,       // }
     Comma,        // ,
     Colon,        // :
+    Dot,          // .
 
     // Formatting
     Newline,

@@ -1,32 +1,78 @@
-<<<<<<< HEAD
-# paslang
-paslang
-=======
-# PasLang Compiler v0.1
+# PasLang Compiler & Multi-Target Language v1.0
 
-**PasLang** is an independent, general-purpose programming language designed for ultimate simplicity, modern syntax, and cross-platform high performance.
+**PasLang** is an independent, production-grade, multi-target programming language designed for **advanced mathematics, numeric equation solving, machine learning model training, embedded microcontroller control (ESP32 / Raspberry Pi / Arduino), and cross-platform web/mobile applications**.
 
 ---
 
-## 🚀 Quick Start (Phase 1: Compiler v0.1)
+## 🌟 Key Capabilities
 
-### PasLang Syntax Example (`examples/hello.pas`)
+### 1. 🧮 Mathematics & Equation Solver Engine
+- **Equation Solvers**: Solves Quadratic equations (`solve_quadratic a b c`) and $N \times N$ Systems of Linear Equations (`solve_linear A b`) using Gaussian elimination.
+- **Scientific Functions**: Trigonometric (`sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`), Exponentials & Logarithms (`exp`, `log`, `log10`), and Rounding (`floor`, `ceil`, `round`).
+- **Matrix & Vector Algebra**: Native 2D matrix allocation (`matrix`), matrix multiplication (`matmul`), transposition (`transpose`), vector dot product (`dot`), and vector Euclidean norm (`norm`).
+
+### 2. 🧠 Machine Learning & Neural Network Primitives
+- **Activations**: Built-in `relu` and `sigmoid` functions operating on scalars, vectors, and matrices.
+- **Training & Gradient Descent**: `train_linear_step(weights, bias, x, y, lr)` updates weights and bias over training data with real-time loss tracking.
+- **Inference**: `predict_linear(weights, bias, x)` for fast model evaluation.
+
+### 3. ⚡ Embedded Microcontroller & Hardware Target (ESP32, Raspberry Pi, Arduino)
+- **C Code Transpiler (`--target=c` or `--emit-c`)**: Translates any PasLang script into clean, portable, standalone ISO C code.
+- **Hardware I/O Stubs**: Native hardware primitives (`pinMode`, `digitalWrite`, `analogRead`, `delay`) ready to compile directly with `xtensa-esp32-elf-gcc` (ESP32), `arm-linux-gnueabihf-gcc` (Raspberry Pi), or `emcc` (WebAssembly for Web apps).
+
+---
+
+## 🚀 Quick Examples
+
+### 1. Mathematics & Equation Solver (`examples/equation_solver.pas`)
 
 ```paslang
-say "Hello World"
+let quadRoots = solve_quadratic 1 -5 6
+say "Roots of x^2 - 5x + 6 = 0:"
+say quadRoots
 
-let x = 10
-
-let y = add x 5
-
-say y
+let A = matrix 2 2 0
+let b = [5.0, 10.0]
+let x_solution = solve_linear A b
+say "Linear System Solution:"
+say x_solution
 ```
 
-### Expected Output
+### 2. Machine Learning Training & Inference (`examples/machine_learning.pas`)
 
-```text
-Hello World
-15
+```paslang
+let weights = [0.1]
+let bias = 0.0
+let lr = 0.05
+let train_x = [[1.0], [2.0], [3.0], [4.0]]
+
+repeat 20:
+    for sample_x in train_x:
+        let step = train_linear_step weights bias sample_x 3.5 lr
+        weights = step["weights"]
+        bias = step["bias"]
+
+let prediction = predict_linear weights bias [5.0]
+say "Model Prediction for x=5.0:"
+say prediction
+```
+
+### 3. ESP32 / Raspberry Pi Microcontroller Control (`examples/esp32_embedded.pas`)
+
+```paslang
+let LED_PIN = 13
+let SENSOR_PIN = 34
+
+pinMode LED_PIN 1
+pinMode SENSOR_PIN 0
+
+let raw_val = analogRead SENSOR_PIN
+let voltage = mul raw_val 0.0048828
+
+if voltage > 2.0:
+    digitalWrite LED_PIN 1
+else:
+    digitalWrite LED_PIN 0
 ```
 
 ---
@@ -34,24 +80,18 @@ Hello World
 ## 🛠️ Building PasLang from Source
 
 ### Prerequisites
-
-- **C++ Compiler**: GCC (MinGW-w64), Clang, or MSVC supporting C++17.
-- **Build System**: CMake 3.16+ and Ninja/Make.
+- **C++ Compiler**: Any GCC, Clang, or MSVC supporting **C++17**.
+- **Build Tool**: CMake 3.16+.
 
 ### Build Steps
 
-#### On Windows (PowerShell / MSYS2 / MinGW / MSVC):
-
+#### On Windows (PowerShell / MinGW / MSVC):
 ```powershell
-# 1. Create build directory
 cmake -B build -G "MinGW Makefiles"
-
-# 2. Build the paslang compiler and test suite
 cmake --build build
 ```
 
 #### On Linux / macOS:
-
 ```bash
 mkdir build && cd build
 cmake ..
@@ -60,18 +100,19 @@ make -j4
 
 ---
 
-## 🏃 Running PasLang Programs
-
-Run the `hello.pas` program:
+## 🏃 Compiler CLI Usage
 
 ```powershell
-./build/paslang examples/hello.pas
-```
+# 1. Direct High-Performance Interpreter Mode:
+./build/paslang examples/equation_solver.pas
+./build/paslang examples/machine_learning.pas
+./build/paslang examples/esp32_embedded.pas
 
-Inspect the Abstract Syntax Tree (AST):
+# 2. Transpile to Standalone C Code for ESP32 / Raspberry Pi / Web / Mobile:
+./build/paslang --emit-c -o output.c examples/esp32_embedded.pas
 
-```powershell
-./build/paslang --ast examples/hello.pas
+# 3. Dump Abstract Syntax Tree (AST):
+./build/paslang --ast examples/equation_solver.pas
 ```
 
 ---
@@ -82,23 +123,26 @@ Inspect the Abstract Syntax Tree (AST):
 ./build/paslang_tests
 ```
 
-Output:
+Expected Output:
 
 ```text
 ========================================
-   Running PasLang Compiler v0.1 Tests  
+   Running PasLang Compiler v1.0 Tests  
 ========================================
 
-[1/3] Running Lexer Tests...
+[1/4] Running Lexer Tests...
       --> Lexer Tests PASSED!
 
-[2/3] Running Parser Tests...
+[2/4] Running Parser Tests...
       --> Parser Tests PASSED!
 
-[3/3] Running Evaluator Tests...
+[3/4] Running Evaluator (Math, Equation Solver & ML) Tests...
       --> Evaluator Tests PASSED!
 
-ALL TESTS PASSED SUCCESSFULLY! (3/3)
+[4/4] Running C Code Generator (Embedded / ESP32 Target) Tests...
+      --> CodeGen Tests PASSED!
+
+ALL TESTS PASSED SUCCESSFULLY! (4/4)
 ```
 
 ---
@@ -108,12 +152,15 @@ ALL TESTS PASSED SUCCESSFULLY! (3/3)
 ```text
 Source Code (.pas)
         ↓
-    [Lexer]       -> Tokens with Line/Column Locations
+    [Lexer]       -> Tokens with Line/Column Tracking
         ↓
    [Parser]       -> Abstract Syntax Tree (AST)
         ↓
 [Semantic Check]  -> Symbol Table Validation & Type Check
         ↓
-   [Evaluator]    -> PasLang Runtime Execution Engine
+  ┌─────┴────────────────────────┐
+  ↓                              ↓
+[Evaluator]              [C Code Generator]
+(High-Performance        (Transpiles to C for ESP32,
+Interpreter & Engine)     Raspberry Pi, Wasm, Mobile)
 ```
->>>>>>> f24e6a3 (feat: Initial release of PasLang Compiler v0.1)
